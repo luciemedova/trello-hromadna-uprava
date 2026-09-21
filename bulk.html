@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hromadná úprava karet</title>
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <script src="./config.js"></script>
+  <style>
+    :root {
+      --bg: #f1f2f4;
+      --surface: #ffffff;
+      --column: #e7e9ec;
+      --text: #172b4d;
+      --muted: #5e6c84;
+      --line: #d5d9df;
+      --accent: #0c66e4;
+      --accent-soft: #e2edff;
+      --add: #1f845a;
+      --add-soft: #dcfff1;
+      --remove: #c9372c;
+      --remove-soft: #ffeceb;
+      --shadow: 0 1px 1px rgba(9, 30, 66, .22), 0 0 1px rgba(9, 30, 66, .3);
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1d2125;
+        --surface: #22272b;
+        --column: #161a1d;
+        --text: #dee4ea;
+        --muted: #9fadbc;
+        --line: #38414a;
+        --accent: #579dff;
+        --accent-soft: #1c2b41;
+        --add: #4bce97;
+        --add-soft: #1c3329;
+        --remove: #f87168;
+        --remove-soft: #42221f;
+        --shadow: 0 1px 1px rgba(0, 0, 0, .5);
+        color-scheme: dark;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font: 14px/20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", Ubuntu, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    button, input, select { font: inherit; color: inherit; }
+    input[type="checkbox"] { width: 16px; height: 16px; margin: 2px 0 0; flex: 0 0 auto; accent-color: var(--accent); cursor: pointer; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* Horní lišta */
+    .auth {
+      display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+      padding: 10px 16px; background: var(--accent-soft); border-bottom: 1px solid var(--line);
+    }
+    .auth[hidden] { display: none; }
+    .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 12px 16px; }
+    .field {
+      height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px;
+      background: var(--surface);
+    }
+    .search { flex: 1 1 220px; max-width: 340px; }
+    .btn {
+      height: 32px; padding: 0 12px; border: 0; border-radius: 6px; cursor: pointer;
+      background: var(--column); font-weight: 500; white-space: nowrap;
+    }
+    .btn:hover:not(:disabled) { filter: brightness(.95); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-link { background: none; color: var(--muted); padding: 0 6px; text-decoration: underline; }
+    .hint { color: var(--muted); font-size: 12px; margin-left: auto; }
+
+    /* Board */
+    .board {
+      flex: 1; min-height: 0; display: flex; gap: 12px; align-items: flex-start;
+      overflow-x: auto; padding: 0 16px 16px;
+    }
+    .column {
+      flex: 0 0 272px; max-height: 100%; display: flex; flex-direction: column;
+      background: var(--column); border-radius: 12px;
+    }
+    .column-head {
+      display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px 8px;
+      font-weight: 600; cursor: pointer; user-select: none;
+    }
+    .column-name { flex: 1; overflow-wrap: anywhere; }
+    .column-count { color: var(--muted); font-weight: 400; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .cards { overflow-y: auto; padding: 0 8px 8px; display: flex; flex-direction: column; gap: 6px; }
+    .card {
+      display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px;
+      background: var(--surface); border-radius: 8px; box-shadow: var(--shadow);
+      border: 2px solid transparent; cursor: pointer; user-select: none;
+    }
+    .card:hover { border-color: var(--line); }
+    .card.is-selected { border-color: var(--accent); background: var(--accent-soft); }
+    .card-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .card-name { overflow-wrap: anywhere; }
+    .pills { display: flex; flex-wrap: wrap; gap: 4px; }
+    .pill {
+      display: inline-block; max-width: 100%; min-width: 32px; height: 16px; padding: 0 6px;
+      border-radius: 4px; font-size: 11px; line-height: 16px; font-weight: 600;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .empty { color: var(--muted); margin: 4px 4px 8px; font-size: 13px; }
+
+    /* Spodní panel */
+    .dock {
+      border-top: 1px solid var(--line); background: var(--surface);
+      padding: 12px 16px 14px; display: flex; flex-direction: column; gap: 10px;
+      max-height: 45vh; overflow-y: auto;
+    }
+    .dock-head { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+    .dock-title { font-weight: 600; }
+    .dock-note { color: var(--muted); font-size: 12px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px 0 6px;
+      border: 1px solid var(--line); border-radius: 15px; background: var(--surface); cursor: pointer;
+    }
+    .chip:hover { border-color: var(--muted); }
+    .chip-mark { width: 16px; text-align: center; font-weight: 700; }
+    .swatch { width: 22px; height: 14px; border-radius: 3px; flex: 0 0 auto; }
+    .swatch.is-none { border: 1px dashed var(--muted); }
+    .chip-count { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+    .chip.is-add { border-color: var(--add); background: var(--add-soft); }
+    .chip.is-add .chip-mark { color: var(--add); }
+    .chip.is-remove { border-color: var(--remove); background: var(--remove-soft); }
+    .chip.is-remove .chip-mark { color: var(--remove); }
+    .chip.is-remove .chip-name { text-decoration: line-through; }
+    .dock-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .status { font-size: 13px; color: var(--muted); }
+    .status.is-error { color: var(--remove); }
+    .status.is-ok { color: var(--add); }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .card, .chip { transition: border-color .12s, background-color .12s; }
+    }
+  </style>
+</head>
+<body>
+  <div class="auth" id="auth" hidden>
+    <span>Aby mohl doplněk měnit štítky, potřebuje přístup k vašemu účtu Trello.</span>
+    <button type="button" class="btn btn-primary" id="auth-button">Povolit přístup</button>
+  </div>
+
+  <div class="toolbar">
+    <input type="search" class="field search" id="search" placeholder="Hledat kartu podle názvu" aria-label="Hledat kartu podle názvu">
+    <select class="field" id="label-filter" aria-label="Filtrovat podle štítku"></select>
+    <button type="button" class="btn" id="select-visible">Vybrat zobrazené</button>
+    <button type="button" class="btn" id="clear-selection">Zrušit výběr</button>
+    <span class="hint">Shift + klik vybere rozsah karet</span>
+  </div>
+
+  <main class="board" id="board" aria-label="Karty na boardu">
+    <p class="empty">Načítám karty…</p>
+  </main>
+
+  <section class="dock" aria-label="Úprava štítků">
+    <div class="dock-head">
+      <span class="dock-title" id="selected-count">Vyberte karty, které chcete upravit</span>
+      <span class="dock-note">Klik na štítek přepíná: přidat (+), odebrat (−), beze změny.</span>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="dock-actions">
+      <button type="button" class="btn btn-primary" id="apply" disabled>Upravit štítky</button>
+      <button type="button" class="btn btn-link" id="reset-ops" hidden>Zrušit změny štítků</button>
+      <span class="status" id="status" role="status" aria-live="polite"></span>
+    </div>
+  </section>
+
+  <script src="./bulk.js"></script>
+</body>
+</html>
